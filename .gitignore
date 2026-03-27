@@ -1,0 +1,24 @@
+# Entornos virtuales
+venv/
+.env
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# Archivos de SO
+.DS_Store
+Thumbs.db
+
+# Latex
+Latex/*.aux
+Latex/*.log
+Latex/*.out
+Latex/*.fls
+Latex/*.fdb_latexmk
+Latex/*.synctex.gz
+Latex/*.toc
