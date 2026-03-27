@@ -10,7 +10,7 @@
 \usepackage{listings}
 \usepackage{xcolor}
 
-% --- PAQUETE PARA HIPERVÍNCULOS (Debe ir al final de los paquetes) ---
+% --- PAQUETE PARA HIPERVÍNCULOS ---
 \usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue]{hyperref}
 
 % Definición de colores estilo editor
@@ -20,7 +20,7 @@
 \definecolor{cadenas}{rgb}{0.6, 0.1, 0.1}
 \definecolor{numeros}{rgb}{0.5, 0.5, 0.5}
 
-% --- SOLUCIÓN OVERLEAF: ENSEÑARLE RUST A LATEX ---
+% --- ENSEÑARLE RUST A LATEX ---
 \lstdefinelanguage{Rust}{
   keywords={fn, let, mut, for, in, if, else, return, pub, struct, impl, enum, match, use, mod, const, static, vec, f64, u32, i32, Vec, String},
   sensitive=true,
@@ -114,13 +114,15 @@
 % --- SECCIÓN DE CÓDIGO ---
 % =========================================================
 \newpage
-\section*{Cálculo del Conjunto}
+\section*{Cálculo Algorítmico del Conjunto}
 
-Para abordar el cálculo del conjunto, decidí programar el motor principal en Rust y consumirlo desde Python. Elegí Rust por el control estricto que ofrece sobre la memoria y su eficiencia pura, algo crucial cuando la cantidad de intervalos crece de forma exponencial con cada iteración. Para no hacer la interconexión un dolor de cabeza, utilicé \texttt{maturin} junto con \texttt{PyO3}. Estas herramientas me permitieron compilar el código de Rust de forma limpia y usarlo en Python como si fuera un módulo nativo. De esta manera, dejé que Rust hiciera el trabajo duro de cálculo espacial, mientras delegué la lógica de renderizado visual a Python, aprovechando lo práctico que es su ecosistema con \texttt{Matplotlib} y \texttt{NumPy}.
+Cuando empecé a modelar el Conjunto de Cantor, me di cuenta rápido de que el problema real no era dibujar las líneas, sino manejar la memoria. Como la cantidad de segmentos crece con una complejidad espacial de $\mathcal{O}(2^n)$, Python se quedaba sin recursos o se volvía muy lento al calcular millones de intervalos. Por eso decidí hacer el cálculo pesado en Rust. Rust es excelente manejando la memoria de forma eficiente, lo cual era justo lo que necesitaba para este algoritmo. 
+
+Para no complicarme demasiado conectando ambos lenguajes, utilicé \texttt{maturin} y \texttt{PyO3}. Estas herramientas me permitieron escribir mi función matemática en Rust, compilarla fácilmente y luego importarla en Python como si fuera una librería normal. Así, Rust hace todo el trabajo duro de calcular las coordenadas, y Python solo se encarga de lo que hace mejor: dibujar y mostrar la interfaz al usuario.
 
 \vspace{0.5cm}
 
-\begin{lstlisting}[language=Rust, caption=Cálculo del Conjunto de Cantor en Rust usando PyO3]
+\begin{lstlisting}[language=Rust, caption=Cálculo del Conjunto de Cantor optimizado en memoria usando Rust]
 use pyo3::prelude::*;
 
 #[pyfunction]
@@ -149,11 +151,9 @@ fn CantorLib(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 \end{lstlisting}
 
-Al diseñar la función \texttt{conjunto\_de\_cantor}, definí el número de iteraciones como un entero sin signo de 32 bits (\texttt{u32}), ya que no tiene sentido matemático pedir iteraciones negativas y físicamente es imposible calcular miles de ellas sin saturar la memoria RAM. La función devuelve un vector de tuplas \texttt{f64}; usar flotantes de 64 bits era innegociable para no perder precisión computacional cuando los segmentos se vuelven casi microscópicos en las iteraciones más profundas. El algoritmo arranca inicializando la memoria con el segmento base $[0.0, 1.0]$.
+En el código, usé un tipo \texttt{u32} (entero sin signo) para las iteraciones porque, matemáticamente, no vamos a pedir iteraciones negativas, y mi computadora saturaría su memoria RAM mucho antes de llegar al límite de ese número. Lo que sí era vital era usar flotantes de 64 bits (\texttt{f64}) para guardar los intervalos. 
 
-El núcleo del programa es un ciclo que se repite según las iteraciones solicitadas. Un detalle importante de optimización aquí es el uso de \texttt{Vec::with\_capacity(intervalos.len() * 2)}. Al preasignar la memoria exacta que van a ocupar los subsegmentos en el siguiente nivel, evito que Rust gaste recursos de CPU reasignando memoria dinámica en tiempo de ejecución. En cada paso iterativo, tomo cada intervalo, divido su longitud entre 3 para obtener la \texttt{distancia}, y creo los dos nuevos subsegmentos: el izquierdo sumando la distancia al punto de inicio, y el derecho restándola del final. 
-
-Para ejemplificar visualmente este comportamiento en memoria, la siguiente figura ilustra cómo el algoritmo toma el segmento original, calcula la distancia de un tercio y empuja las nuevas coordenadas al vector en las primeras iteraciones:
+El mayor truco de optimización que implementé fue \texttt{Vec::with\_capacity}. En lugar de dejar que el programa adivinara cuánta memoria iba a necesitar y perdiera tiempo reasignando arreglos, le digo exactamente cuánto espacio reservar desde el inicio de cada paso (exactamente el doble del vector anterior). Después, solo es cuestión de tomar cada segmento, calcular la distancia dividiendo su longitud entre 3, y guardar las nuevas coordenadas de los extremos izquierdo y derecho (ver Figura 1).
 
 \begin{figure}[htpb]
     \centering
@@ -180,20 +180,16 @@ Para ejemplificar visualmente este comportamiento en memoria, la siguiente figur
         
     \end{tikzpicture}
     \vspace{0.3cm}
-    \caption{Representación gráfica de la división del segmento en el ciclo de Rust.}
+    \caption{Representación gráfica de la división matemática programada en el ciclo de Rust.}
 \end{figure}
 
-Sobreescribo el vector principal con estos nuevos intervalos y, al concluir el cálculo, los datos puros viajan de vuelta a Python listos para graficarse.
+\section*{Visualización e Interfaz}
 
-\section*{Graficación del Conjunto}
-
-Una vez construido el motor de cálculo, el siguiente paso fue consumirlo desde el script de Python. El programa compila la librería nativa \texttt{CantorLib.so} usando el entorno de \texttt{cargo} y la importa dinámicamente mediante \texttt{importlib}. Posteriormente, se le solicita al usuario ingresar el número de iteraciones deseadas a través de un \texttt{input} estándar.
-
-Para el proceso de graficación, utilicé \texttt{Matplotlib} para pintar el lienzo y \texttt{NumPy} para manejar los búferes de memoria. El núcleo visual es la función \texttt{actualizar\_escena}, la cual se conecta a los eventos de la cámara (zoom o paneo) para calcular matemáticamente qué nivel de detalle (\textit{LOD}) es visible en pantalla y enviar únicamente los segmentos vectoriales necesarios a la tarjeta gráfica, manteniendo la visualización fluida incluso con millones de segmentos calculados.
+Con la matemática resuelta, el script de Python importa la librería \texttt{CantorLib.so} recién compilada. Agregué un \texttt{input} sencillo para que el usuario elija hasta qué nivel del fractal quiere profundizar. Luego, meto esos datos en arreglos de \texttt{NumPy} para manejarlos en bloque y uso \texttt{Matplotlib} para pintarlos en pantalla.
 
 \vspace{0.5cm}
 
-\begin{lstlisting}[language=Python, caption=Implementación de renderizado interactivo en Python (cantor.py)]
+\begin{lstlisting}[language=Python, caption=Interfaz de ejecución y renderizado vectorial en Python]
 import os
 import sys
 import time
@@ -313,27 +309,27 @@ plt.show()
 
 \section*{Resultados y Rendimiento}
 
-Al ejecutar el código, la generación del fractal se realiza de manera extraordinariamente rápida. Para un escenario de alta demanda algorítmica, el backend desarrollado en Rust es capaz de calcular $2,097,151$ elementos en tan solo $0.633$ segundos. En la Figura 2 se presenta la vista general inicial de la salida, donde la estructura global del Conjunto de Cantor se aprecia de manera satisfactoria.
+Los resultados confirman que delegar el cálculo algorítmico a Rust fue una excelente decisión. El programa calcula $2,097,151$ elementos en apenas $0.633$ segundos. Estos cálculos los realicé pidiendo $20$ iteraciones al sistema, que es el número recomendado para ver la complejidad del fractal sin quedarme sin memoria RAM.
 
 \begin{figure}[htpb]
     \centering
     \includegraphics[width=0.9\textwidth]{output.png}
-    \caption{Vista general del Conjunto de Cantor generado. La eficiencia de Rust permite un despliegue inmediato de millones de segmentos.}
+    \caption{Vista general del Conjunto de Cantor. En pocos milisegundos se despliegan más de dos millones de segmentos en pantalla.}
 \end{figure}
 
-A simple vista, debido a las limitaciones naturales de renderizado por píxel en una pantalla estándar, \texttt{Matplotlib} fusiona visualmente los intervalos más pequeños, causando lo que conocemos como aliasing. Sin embargo, gracias al motor matemático implementado, los datos no se destruyen. Al realizar acercamientos (zoom) sobre la gráfica, el sistema recalcula los vectores visibles y renderiza las coordenadas exactas de forma dinámica. Como se observa en la Figura 3, al navegar hacia las profundidades del fractal, los subsegmentos microscópicos se definen perfectamente y las etiquetas de plano técnico emergen sin ninguna caída en el rendimiento ni pérdida de precisión en los flotantes.
+Si miramos la gráfica sin acercarnos (Figura 2), parece que los segmentos simplemente se unen en líneas sólidas debido a los píxeles de la pantalla. Pero la precisión matemática está ahí. Al hacer zoom en la gráfica, el sistema vuelve a calcular qué partes estamos viendo y renderiza las coordenadas sin ningún tipo de retraso, probando que no se perdió ni un solo decimal en las profundidades del fractal (Figura 3).
 
 \begin{figure}[htpb]
     \centering
     \includegraphics[width=0.9\textwidth]{output_1.png}
-    \caption{Detalle del fractal al realizar zoom. El motor interactivo revela las coordenadas de alta precisión en tiempo real de los elementos más finos.}
+    \caption{Detalle de las coordenadas al hacer zoom. Los subsegmentos se definen perfectamente gracias al cálculo en f64.}
 \end{figure}
 
 % Forzar a LaTeX a vaciar la cola de imágenes antes de continuar
 \clearpage
 
 % --- SECCIÓN DE REPOSITORIO Y QR ---
-\vspace*{\fill} % Empuja el contenido hacia el centro de la página
+\vspace*{\fill}
 \begin{center}
     {\Large \textbf{Repositorio del Proyecto}} \\[0.4cm]
     El código fuente completo de esta implementación está disponible en GitHub: \\[0.3cm]
