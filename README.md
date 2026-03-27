@@ -39,7 +39,7 @@ python cantor.py
 ### ¿Qué ocurre al ejecutarlo?
 
 1. En la **primera ejecución** o si el archivo `CantorLib.so` (o `.pyd`) no existe aún, el archivo `cantor.py` invocará a Cargo internamente (`cargo build --release`) para compilar la biblioteca de Rust a partir del código en la carpeta `CantorLib`.
-2. Te pedirá introducir por la terminal el **número de iteraciones** del conjunto de Cantor que deseas calcular. *(Se recomienda probar números pequeños primero, ya que el número de segmentos crece de forma exponencial como $2^n$)*.
+2. Te pedirá introducir por la terminal el **número de iteraciones** del conjunto de Cantor que deseas calcular. *(Se recomienda probar números pequeños primero, ya que el número de segmentos crece de forma exponencial)*.
 3. Se abrirá una ventana interactiva de `matplotlib` mostrando la representación visual de todos los segmentos generados. Puedes hacer zoom y desplazarte por ella dinámicamente.
 
 ## Estructura del código
